@@ -121,13 +121,13 @@ func main() {
 	for {
 		remoteConn, remoteConnErr := listener.Accept()
 		if remoteConnErr != nil {
-			log.Fatalf("[FATAL] Failed to accept connection: %v", remoteConnErr)
+			log.Panicf("[PANIC] Failed to accept connection: %v", remoteConnErr)
 		}
 		log.Print("[INFO] New connection from remote established.")
 
 		localConn, localConnErr := net.Dial("tcp", dialAddress)
 		if localConnErr != nil {
-			log.Fatalf("[FATAL] Failed to create connection with the local address (%s): %v", dialAddress, localConnErr)
+			log.Panicf("[PANIC] Failed to create connection with the local address (%s): %v", dialAddress, localConnErr)
 		}
 		log.Print("[INFO] New connection to local established.")
 
