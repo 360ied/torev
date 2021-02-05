@@ -80,6 +80,7 @@ func main() {
 		if configFileDataErr != nil {
 			log.Fatalf("[FATAL] Failed to read config file (path: %s): %v", configPath, configFileDataErr)
 		}
+		configFile.Close()
 
 		var unmarshalledConfig configJSON
 		if err := json.Unmarshal(configFileData, &unmarshalledConfig); err != nil {
