@@ -1,5 +1,5 @@
 # torev
-tor reverse proxy
+Tor reverse proxy, for transparently exposing your websites (or any TCP program) as Tor hidden services
 
 ## Installation
 Step 1: [Install Go](https://golang.org/)
