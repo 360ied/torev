@@ -108,7 +108,7 @@ func main() {
 	log.Print("[INFO] Done starting TOR.")
 
 	log.Print("[INFO] Starting the listener...")
-	listener, listenerErr := t.Listen(context.Background(), &tor.ListenConf{Key: key, RemotePorts: remotePorts, LocalPort: localPort})
+	listener, listenerErr := t.Listen(context.Background(), &tor.ListenConf{Key: key, RemotePorts: remotePorts})
 	if listenerErr != nil {
 		log.Panicf("[PANIC] Failed to start the listener: %v", listenerErr)
 	}
