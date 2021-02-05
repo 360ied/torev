@@ -6,6 +6,8 @@ Step 1: [Install Go](https://golang.org/)
 
 Step 2: Run `go get -u -v https://github.com/360ied/torev` (Note that this also updates the program.)
 
+Note: As this uses [go-libtor](github.com/ipsn/go-libtor), this does not require Tor to be installed, as it is statically linked into the program!
+
 ## Usage
 Run `torev`. It will generate a configuration file. You can edit it if you wish, but the defaults should be fine for most web services.
 
