@@ -41,7 +41,7 @@ func main() {
 	if configFileErr != nil {
 		if errors.Is(configFileErr, os.ErrNotExist) {
 			// file does not exist, so we create it and generate a default config
-			log.Fatalf("[WARN] Config file doesn't exist, so creating one at %s", configPath)
+			log.Printf("[WARN] Config file doesn't exist, so creating one at %s", configPath)
 
 			var generateKeyErr error
 			_, key, generateKeyErr = ed25519.GenerateKey(nil)
