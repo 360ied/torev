@@ -53,12 +53,12 @@ func main() {
 			localPort = 8080
 			localAddress = "127.0.0.1"
 
-			marshalledConfig, marshalledConfigErr := json.Marshal(configJSON{
+			marshalledConfig, marshalledConfigErr := json.MarshalIndent(configJSON{
 				KeyBase64:    base64.StdEncoding.EncodeToString(key),
 				RemotePorts:  remotePorts,
 				LocalAddress: localAddress,
 				LocalPort:    localPort,
-			})
+			}, "", "\t")
 			if marshalledConfigErr != nil {
 				log.Fatalf("[FATAL] Failed to marshal config: %v", marshalledConfigErr)
 			}
@@ -97,20 +97,25 @@ func main() {
 		localPort = unmarshalledConfig.LocalPort
 	}
 
+	log.Print("[INFO] Starting TOR...")
 	t, tErr := tor.Start(context.Background(), &tor.StartConf{ProcessCreator: libtor.Creator})
 	if tErr != nil {
 		log.Fatalf("[FATAL] Failed to start TOR process: %v", tErr)
 	}
 	defer t.Close()
+	log.Print("[INFO] Done starting TOR.")
 
+	log.Print("[INFO] Starting the listener...")
 	listener, listenerErr := t.Listen(context.Background(), &tor.ListenConf{Key: key, RemotePorts: remotePorts, LocalPort: localPort})
 	if listenerErr != nil {
-		log.Fatalf("[FATAL] Failed to start listener: %v", listenerErr)
+		log.Fatalf("[FATAL] Failed to start the listener: %v", listenerErr)
 	}
 	defer listener.Close()
+	log.Print("[INFO] Done starting the listener.")
 
 	dialAddress := fmt.Sprintf("%s:%d", localAddress, localPort)
 
+	log.Printf("[STARTED] Proxying connections from %s.onion to %s", listener.ID, dialAddress)
 	for {
 		remoteConn, remoteConnErr := listener.Accept()
 		if remoteConnErr != nil {
