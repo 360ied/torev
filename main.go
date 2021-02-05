@@ -72,6 +72,7 @@ func main() {
 			if _, err := configFile.Write(marshalledConfig); err != nil {
 				log.Fatalf("[FATAL] Failed to write generated config to config file (path: %s): %v", configPath, configFileCreateErr)
 			}
+			configFile.Close()
 		} else {
 			log.Fatalf("[FATAL] Failed to open or create the config file (path: %s): %v", configPath, configFileErr)
 		}
