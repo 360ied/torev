@@ -74,9 +74,9 @@ func main() {
 			}
 			configFile.Close()
 		} else {
-			log.Fatalf("[FATAL] Failed to open or create the config file (path: %s): %v", configPath, configFileErr)
+			log.Fatalf("[FATAL] Failed to open the config file (path: %s): %v", configPath, configFileErr)
 		}
-	} else { // no error
+	} else { // config file exists
 		configFileData, configFileDataErr := ioutil.ReadAll(configFile)
 		if configFileDataErr != nil {
 			log.Fatalf("[FATAL] Failed to read config file (path: %s): %v", configPath, configFileDataErr)
