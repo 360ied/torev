@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,8 +20,7 @@ import (
 type configJSON struct {
 	KeyBase64    string // Private Key to use for the TOR Hidden Service. Must be a v3 (ed25519) key. Must be encoded in Base64
 	RemotePorts  []int  // Ports exposed in the TOR Hidden Service
-	LocalAddress string // The address the connections should be proxied to (no port)
-	LocalPort    int    // The port the connections should be proxied to
+	LocalAddress string // The address the connections should be proxied to
 }
 
 func main() {
@@ -34,7 +32,6 @@ func main() {
 		key          ed25519.PrivateKey
 		remotePorts  []int
 		localAddress string
-		localPort    int
 	)
 
 	configFile, configFileErr := os.Open(configPath)
@@ -50,14 +47,12 @@ func main() {
 			}
 
 			remotePorts = []int{80}
-			localPort = 8080
-			localAddress = "127.0.0.1"
+			localAddress = "127.0.0.1:8080"
 
 			marshalledConfig, marshalledConfigErr := json.MarshalIndent(configJSON{
 				KeyBase64:    base64.StdEncoding.EncodeToString(key),
 				RemotePorts:  remotePorts,
 				LocalAddress: localAddress,
-				LocalPort:    localPort,
 			}, "", "\t")
 			if marshalledConfigErr != nil {
 				log.Fatalf("[FATAL] Failed to marshal config: %v", marshalledConfigErr)
@@ -96,7 +91,6 @@ func main() {
 
 		remotePorts = unmarshalledConfig.RemotePorts
 		localAddress = unmarshalledConfig.LocalAddress
-		localPort = unmarshalledConfig.LocalPort
 	}
 
 	log.Print("[INFO] Starting TOR...")
@@ -115,9 +109,7 @@ func main() {
 	defer listener.Close()
 	log.Print("[INFO] Done starting the listener.")
 
-	dialAddress := fmt.Sprintf("%s:%d", localAddress, localPort)
-
-	log.Printf("[STARTED] Proxying connections from %s.onion to %s", listener.ID, dialAddress)
+	log.Printf("[STARTED] Proxying connections from %s.onion to %s", listener.ID, localAddress)
 	for {
 		remoteConn, remoteConnErr := listener.Accept()
 		if remoteConnErr != nil {
@@ -125,9 +117,9 @@ func main() {
 		}
 		log.Print("[INFO] New connection from remote established.")
 
-		localConn, localConnErr := net.Dial("tcp", dialAddress)
+		localConn, localConnErr := net.Dial("tcp", localAddress)
 		if localConnErr != nil {
-			log.Panicf("[PANIC] Failed to create connection with the local address (%s): %v", dialAddress, localConnErr)
+			log.Panicf("[PANIC] Failed to create connection with the local address (%s): %v", localAddress, localConnErr)
 		}
 		log.Print("[INFO] New connection to local established.")
 
