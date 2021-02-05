@@ -7,11 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/cretz/bine/tor"
 	"github.com/ipsn/go-libtor"
@@ -22,6 +26,11 @@ type configJSON struct {
 	RemotePorts  []int  // Ports exposed in the TOR Hidden Service
 	LocalAddress string // The address the connections should be proxied to
 }
+
+const (
+	copyBufferSize = 32 * 1024        // 32KB
+	readTimeout    = 10 * time.Second // 10 seconds
+)
 
 func main() {
 	var configPath string
@@ -123,14 +132,70 @@ func main() {
 		}
 		log.Print("[INFO] New connection to local established.")
 
+		connErr := &atomic.Value{}
+		once := &sync.Once{} // to avoid overwriting connErr
 		go func() {
+			defer once.Do(func() { connErr.Store(errors.New("goroutine panicked")) })
 			log.Print("[INFO] Proxying data from remote to local...")
-			_, err := io.Copy(localConn, remoteConn)
+			buf := make([]byte, copyBufferSize)
+			var err error
+			for {
+				if load := connErr.Load(); load != nil {
+					err = fmt.Errorf("error occured in other goroutine: %w", load.(error))
+					break
+				}
+
+				setDeadLineErr := remoteConn.SetReadDeadline(time.Now().Add(readTimeout))
+				if setDeadLineErr != nil {
+					err = setDeadLineErr
+					break
+				}
+
+				n, readErr := remoteConn.Read(buf)
+				if readErr != nil && !strings.HasSuffix(readErr.Error(), "i/o timeout") {
+					err = readErr
+					break
+				}
+
+				_, writeErr := localConn.Write(buf[:n])
+				if writeErr != nil {
+					err = writeErr
+					break
+				}
+			}
+			once.Do(func() { connErr.Store(err) })
 			log.Printf("[INFO] Stopped proxying data from one of the connections from remote to local: %v", err)
 		}()
 		go func() {
+			defer once.Do(func() { connErr.Store(errors.New("goroutine panicked")) })
 			log.Print("[INFO] Proxying data from local to remote...")
-			_, err := io.Copy(remoteConn, localConn)
+			buf := make([]byte, copyBufferSize)
+			var err error
+			for {
+				if load := connErr.Load(); load != nil {
+					err = fmt.Errorf("error occured in other goroutine: %w", load.(error))
+					break
+				}
+
+				setDeadLineErr := localConn.SetReadDeadline(time.Now().Add(readTimeout))
+				if setDeadLineErr != nil {
+					err = setDeadLineErr
+					break
+				}
+
+				n, readErr := localConn.Read(buf)
+				if readErr != nil && !strings.HasSuffix(readErr.Error(), "i/o timeout") {
+					err = readErr
+					break
+				}
+
+				_, writeErr := remoteConn.Write(buf[:n])
+				if writeErr != nil {
+					err = writeErr
+					break
+				}
+			}
+			once.Do(func() { connErr.Store(err) })
 			log.Printf("[INFO] Stopped proxying data from one of the connections from local to remote: %v", err)
 		}()
 	}
