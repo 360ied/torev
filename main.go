@@ -1,20 +1,28 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
+
+	"github.com/cretz/bine/tor"
+	"github.com/ipsn/go-libtor"
 )
 
 type configJSON struct {
-	KeyBase64   string // Private Key to use for the TOR Hidden Service. Must be a v3 (ed25519) key. Must be encoded in Base64
-	RemotePorts []int  // Ports exposed in the TOR Hidden Service
-	LocalPort   int    // The port the connections should be proxied to
+	KeyBase64    string // Private Key to use for the TOR Hidden Service. Must be a v3 (ed25519) key. Must be encoded in Base64
+	RemotePorts  []int  // Ports exposed in the TOR Hidden Service
+	LocalAddress string // The address the connections should be proxied to (no port)
+	LocalPort    int    // The port the connections should be proxied to
 }
 
 func main() {
@@ -23,9 +31,10 @@ func main() {
 	flag.Parse()
 
 	var (
-		key         ed25519.PrivateKey
-		remotePorts []int
-		localPort   int
+		key          ed25519.PrivateKey
+		remotePorts  []int
+		localAddress string
+		localPort    int
 	)
 
 	configFile, configFileErr := os.Open(configPath)
@@ -42,11 +51,13 @@ func main() {
 
 			remotePorts = []int{80}
 			localPort = 8080
+			localAddress = "127.0.0.1"
 
 			marshalledConfig, marshalledConfigErr := json.Marshal(configJSON{
-				KeyBase64:   base64.StdEncoding.EncodeToString(key),
-				RemotePorts: remotePorts,
-				LocalPort:   localPort,
+				KeyBase64:    base64.StdEncoding.EncodeToString(key),
+				RemotePorts:  remotePorts,
+				LocalAddress: localAddress,
+				LocalPort:    localPort,
 			})
 			if marshalledConfigErr != nil {
 				log.Fatalf("[FATAL] Failed to marshal config: %v", marshalledConfigErr)
@@ -82,6 +93,46 @@ func main() {
 		}
 
 		remotePorts = unmarshalledConfig.RemotePorts
+		localAddress = unmarshalledConfig.LocalAddress
 		localPort = unmarshalledConfig.LocalPort
+	}
+
+	t, tErr := tor.Start(context.Background(), &tor.StartConf{ProcessCreator: libtor.Creator})
+	if tErr != nil {
+		log.Fatalf("[FATAL] Failed to start TOR process: %v", tErr)
+	}
+	defer t.Close()
+
+	listener, listenerErr := t.Listen(context.Background(), &tor.ListenConf{Key: key, RemotePorts: remotePorts, LocalPort: localPort})
+	if listenerErr != nil {
+		log.Fatalf("[FATAL] Failed to start listener: %v", listenerErr)
+	}
+	defer listener.Close()
+
+	dialAddress := fmt.Sprintf("%s:%d", localAddress, localPort)
+
+	for {
+		remoteConn, remoteConnErr := listener.Accept()
+		if remoteConnErr != nil {
+			log.Fatalf("[FATAL] Failed to accept connection: %v", remoteConnErr)
+		}
+		log.Print("[INFO] New connection from remote established.")
+
+		localConn, localConnErr := net.Dial("tcp", dialAddress)
+		if localConnErr != nil {
+			log.Fatalf("[FATAL] Failed to create connection with the local address (%s): %v", dialAddress, localConnErr)
+		}
+		log.Print("[INFO] New connection to local established.")
+
+		go func() {
+			log.Print("[INFO] Proxying data from remote to local...")
+			_, err := io.Copy(localConn, remoteConn)
+			log.Printf("[INFO] Stopped proxying data from one of the connections from remote to local: %v", err)
+		}()
+		go func() {
+			log.Print("[INFO] Proxying data from local to remote...")
+			_, err := io.Copy(remoteConn, localConn)
+			log.Printf("[INFO] Stopped proxying data from one of the connections from local to remote: %v", err)
+		}()
 	}
 }
