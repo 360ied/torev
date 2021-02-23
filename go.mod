@@ -1,4 +1,4 @@
-module torev
+module github.com/360ied/torev
 
 go 1.15
 
